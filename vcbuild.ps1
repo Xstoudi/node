@@ -77,6 +77,23 @@ function ExitWithCode () {
   )
   exit $(if ($LASTEXITCODE -ne 0) { $LASTEXITCODE } Else { $exit_code })
 }
+
+function RunCmdAndSetEnv () {
+  param (
+    $command
+  )
+  Write-Output "Running $command && set"
+  cmd /c "$command && set" |
+  ForEach-Object {
+    if ($_ -match "=") {
+      $v = $_.split("="); Set-Item -Force -Path "Env:\$($v[0])"  -Value "$($v[1])"
+    }
+    else {
+      Write-Output $_
+    }
+  }
+}
+
 function Get-NodeVersion () {
   $node_version = python "tools\getnodeversion.py"
   if (!$node_version) {
@@ -119,6 +136,7 @@ function Get-NodeVersion () {
   }
   $fullversion = "$node_version-$tag"
 }
+
 function MSBuildNotFound () {
   Write-Output 'Failed to find a suitable Visual Studio installation.'
   Write-Output 'Try to run in a "Developer Command Prompt" or consult'
@@ -133,7 +151,6 @@ function SkipConfigure () {
 }
 
 function RunConfigure () {
-  Write-Output 'RUN CONFIGURE'
   Remove-Item .tmp_gyp_configure_stamp -Force
   Remove-Item .gyp_configure_stamp -Force -ErrorAction SilentlyContinue
   # Generate the VS project.
@@ -489,6 +506,8 @@ switch ($args) {
 }
 #endregion Load arguments
 
+[void] ($configure_args.Add("--dest-cpu=$target_arch"))
+
 if ($target_arch -eq 'x86' -and $env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
   [void] ($configure_args.Add('--no-cross-compiling'))
 }
@@ -506,14 +525,14 @@ if ($target -eq "TestClean") {
   Remove-Item test/.tmp* -Recurse -Force
 }
 
-.\tools\msvs\find_python.cmd | Write-Output
+RunCmdAndSetEnv '.\tools\msvs\find_python.cmd'
 if ($LASTEXITCODE -eq 1) {
   ExitWithCode 
 }
 
 # NASM is only needed on IA32 and x86_64
 if ($openssl_no_asm -eq $false -and $target_arch -ne 'arm64') {
-  .\tools\msvs\find_nasm.cmd | Write-Output
+  RunCmdAndSetEnv '.\tools\msvs\find_nasm.cmd'
   if ($LASTEXITCODE -eq 1) {
     Write-Output 'Could not find NASM, install it or build with openssl-no-asm. See BUILDING.md.'
   }
@@ -583,14 +602,9 @@ if ($noprojgen -eq $false -or $nobuild -eq $false) {
     # prevent VsDevCmd.bat from changing the current working directory
     $env:VSCMD_START_DIR = (Get-Location).Path
     $vcvars_call = "$vcinstalldir\Auxiliary\Build\vcvarsall.bat"
-    $vcvars_cmd = "`"$vcvars_call`" $vcvarsall_arg && set"
+    $vcvars_cmd = "`"$vcvars_call`" $vcvarsall_arg"
     Write-Output "calling: $vcvars_cmd"
-    cmd /c "$vcvars_cmd" |
-    ForEach-Object {
-      if ($_ -match "=") {
-        $v = $_.split("="); set-item -force -path "ENV:\$($v[0])"  -value "$($v[1])"
-      }
-    }
+    RunCmdAndSetEnv $vcvars_cmd
     if ($LASTEXITCODE -eq 1) {
       MSBuildNotFound
     }
