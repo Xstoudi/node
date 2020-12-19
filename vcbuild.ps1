@@ -135,7 +135,7 @@ function SkipConfigure () {
 function RunConfigure () {
   Write-Output 'RUN CONFIGURE'
   Remove-Item .tmp_gyp_configure_stamp -Force
-  Remove-Item .gyp_configure_stamp -Force
+  Remove-Item .gyp_configure_stamp -Force -ErrorAction SilentlyContinue
   # Generate the VS project.
   Write-Output "configure $configure_args"
   $configure_args > .used_configure_flags
@@ -533,7 +533,7 @@ if ($target -eq 'Clean') {
 if ($noprojgen -eq $false -or $nobuild -eq $false) {
   # Set environment for msbuild
   $msvs_host_arch = 'x86'
-  if ("_$PROCESSOR_ARCHITECTURE`_" -eq '_AMD64_' -or "_$PROCESSOR_ARCHITEW6432_" -eq '_AMD64_') {
+  if ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'AMD64') {
     $msvs_host_arch = 'amd64'
   }
   
@@ -560,7 +560,7 @@ if ($noprojgen -eq $false -or $nobuild -eq $false) {
     $vcinstalldir = ''
   }
   . .\tools\msvs\vswhere_usability_wrapper.ps1 "[16.0,17.0)" "prerelease"
-  if ("_$vcinstalldir`_" -eq '__') {
+  if (!$vcinstalldir) {
     MSBuildNotFound
   }
   $wixsdkdir = "$env:WIX\SDK\VS2017"
@@ -577,22 +577,29 @@ if ($noprojgen -eq $false -or $nobuild -eq $false) {
     }
   }
   # check if VS201 is already setup, and for the requested arch
-  # Where does it come from ?
-  if ("_$env:VisualStudioVersion`_" -ne '_16.0_' -or "_$env:VSCMD_ARG_TGT_ARCH`_" -ne "_$target_arch`_") {
-    $vsinstalldir = ''
-    $vscmd_start_dir = (Get-Location).Path
+  if ($env:VisualStudioVersion -ne '16.0' -or $env:VSCMD_ARG_TGT_ARCH -ne $target_arch) {
+    # need to clear VSINSTALLDIR for vcvarsall to work as expected
+    $env:VSINSTALLDIR = ''
+    # prevent VsDevCmd.bat from changing the current working directory
+    $env:VSCMD_START_DIR = (Get-Location).Path
     $vcvars_call = "$vcinstalldir\Auxiliary\Build\vcvarsall.bat"
-    Write-Output "calling: $vcvars_call $vcvarsall_arg"
-    & $vcvars_call $vcvarsall_arg
+    $vcvars_cmd = "`"$vcvars_call`" $vcvarsall_arg && set"
+    Write-Output "calling: $vcvars_cmd"
+    cmd /c "$vcvars_cmd" |
+    ForEach-Object {
+      if ($_ -match "=") {
+        $v = $_.split("="); set-item -force -path "ENV:\$($v[0])"  -value "$($v[1])"
+      }
+    }
     if ($LASTEXITCODE -eq 1) {
       MSBuildNotFound
     }
   }
 
-  Write-Output "Found MSVS version $VisualStudioVersion"
+  Write-Output "Found MSVS version $env:VisualStudioVersion"
 
-  $gyp_msvs_version = 2019
-  $platform_toolset = 'v142'
+  $env:GYP_MSVS_VERSION = 2019
+  $env:platform_toolset = 'v142'
   $project_generated = $false
 
   # noprojgen                                     -> msbuild
