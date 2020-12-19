@@ -207,7 +207,7 @@ function Build() {
   $env:UseMultiToolTask = 'True'
   $env:EnforceProcessCountAcrossBuilds = 'True'
   $env:MultiProcMaxCount = $env:NUMBER_OF_PROCESSORS
-  msbuild node.sln $msbcpu /t:$target /p:Configuration=$config /p:Platform=$msbplatform /clp:NoItemAndPropertyList;Verbosity=minimal /nologo $extra_msbuild_args
+  msbuild node.sln $msbcpu /t:$target /p:Configuration=$config /p:Platform=$msbplatform "/clp:NoItemAndPropertyList;Verbosity=minimal" /nologo $extra_msbuild_args
   if ($project_generated -eq $false) {
     Write-Output 'Building Node with reused solution failed. To regenerate project files use "vcbuild projgen"'
   }
