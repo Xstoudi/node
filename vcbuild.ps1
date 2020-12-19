@@ -199,8 +199,8 @@ function Build() {
   if ($target -eq 'node' -and (Test-Path "$config\cctest.exe")) {
     Remove-Item "$config\cctest.exe"
   }
-  if ($msbuild_args) {
-    [void] ($extra_msbuild_args.Add($msbuild_args))
+  if ($Env:msbuild_args) {
+    [void] ($extra_msbuild_args.Add($Env:msbuild_args))
   }
 
   # Setup en variables to use multiprocessor build
