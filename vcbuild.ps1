@@ -82,7 +82,6 @@ function RunCmdAndSetEnv () {
   param (
     $command
   )
-  Write-Output "Running $command && set"
   cmd /c "$command && set" |
   ForEach-Object {
     if ($_ -match "=") {
@@ -169,7 +168,6 @@ function RunConfigure () {
 }
 
 function Build() {
-  Write-Output 'MSBUILD CONFIGURE'
   # Skip build if requested
   if ($nobuild -eq $true) {
     return
@@ -184,7 +182,7 @@ function Build() {
   if ($target_arch -eq 'x64') {
     $msbplatform = 'x64'
   }
-  if ($target_arch = 'arm64') {
+  if ($target_arch -eq 'arm64') {
     $msbplatform = 'ARM64'
   }
   if ($target -eq 'Build') {
@@ -209,8 +207,7 @@ function Build() {
   $env:UseMultiToolTask = 'True'
   $env:EnforceProcessCountAcrossBuilds = 'True'
   $env:MultiProcMaxCount = $env:NUMBER_OF_PROCESSORS
-  Write-Output "GOO"
-  msbuild node.sln $msbcpu /t:$target /p:Configuration=$config /p:Platform=$msbplatform /clp:NoItemAndPropertyList; Verbosity=minimal /nologo $extra_msbuild_args
+  msbuild node.sln $msbcpu /t:$target /p:Configuration=$config /p:Platform=$msbplatform /clp:NoItemAndPropertyList;Verbosity=minimal /nologo $extra_msbuild_args
   if ($project_generated -eq $false) {
     Write-Output 'Building Node with reused solution failed. To regenerate project files use "vcbuild projgen"'
   }
@@ -642,5 +639,4 @@ if ($noprojgen -eq $false -or $nobuild -eq $false) {
   }
 
   Build
-  Write-Output 'End MSBUILD'
 }
