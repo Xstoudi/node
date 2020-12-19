@@ -26,6 +26,7 @@ $target_arch = 'x64'
 $node_version = $null
 $tag = $null
 $fullversion = $null
+$project_generated = $false
 
 # Args arrays
 $configure_args = New-Object System.Collections.ArrayList
@@ -161,7 +162,7 @@ function RunConfigure () {
     Remove-Item .used_configure_flags
     ExitWithCode(1)
   }
-  $project_generated = $true
+  $script:project_generated = $true
   Write-Output 'Project files generated.'
   $configure_args > .gyp_configure_stamp
   where.exe /R . /T *.gyp? >> .tmp_gyp_configure_stamp
@@ -208,8 +209,11 @@ function Build() {
   $env:EnforceProcessCountAcrossBuilds = 'True'
   $env:MultiProcMaxCount = $env:NUMBER_OF_PROCESSORS
   msbuild node.sln $msbcpu /t:$target /p:Configuration=$config /p:Platform=$msbplatform "/clp:NoItemAndPropertyList;Verbosity=minimal" /nologo $extra_msbuild_args
-  if ($project_generated -eq $false) {
-    Write-Output 'Building Node with reused solution failed. To regenerate project files use "vcbuild projgen"'
+  if ($LASTEXITCODE -eq 1) {
+    if ($project_generated -eq $false) {
+      Write-Output 'Building Node with reused solution failed. To regenerate project files use "vcbuild projgen"'
+    }
+    ExitWithCode 1
   }
 }
 #endregion Functions
@@ -611,7 +615,6 @@ if ($noprojgen -eq $false -or $nobuild -eq $false) {
 
   $env:GYP_MSVS_VERSION = 2019
   $env:platform_toolset = 'v142'
-  $project_generated = $false
 
   # noprojgen                                     -> msbuild
   # projgen                       -> runconfigure -> msbuild
