@@ -215,6 +215,7 @@ function Build() {
     }
     ExitWithCode 1
   }
+  if ($target -eq 'Clean') { ExitWithCode 0 }
 }
 #endregion Functions
 
@@ -642,4 +643,18 @@ if ($noprojgen -eq $false -or $nobuild -eq $false) {
   }
 
   Build
+}
+
+# After build
+Remove-Item $config
+if ($LASTEXITCODE -eq 1) {
+  Write-Output "Old build output exists at 'out\$config'. Please remove."
+  ExitWithCode
+}
+if ("out\$config") {
+  New-Item -ItemType Junction -Path $config -Target "out\$config"
+  if ($LASTEXITCODE -eq 1) {
+    Write-Output "Could not create junction to 'out\$config'."
+    ExitWithCode
+  }
 }
