@@ -55,6 +55,7 @@ $openssl_no_asm = $false
 $doc = $false
 $build_js_native_api_tests = $false
 $build_node_api_tests = $false
+$stage_package = $false
 $package = $false
 $msi = $false
 $upload = $false
@@ -651,10 +652,62 @@ if ($LASTEXITCODE -eq 1) {
   Write-Output "Old build output exists at 'out\$config'. Please remove."
   ExitWithCode
 }
-if ("out\$config") {
+if (Test-Path "out\$config") {
   New-Item -ItemType Junction -Path $config -Target "out\$config"
   if ($LASTEXITCODE -eq 1) {
     Write-Output "Could not create junction to 'out\$config'."
     ExitWithCode
   }
+}
+
+# Sign
+# Skip signing unless the `sign` option was specified.
+if ($sign) {
+  cmd /c tools\sign.bat Release\node.exe
+  if ($LASTEXITCODE -eq 1) {
+    Write-Output "Failed to sign exe"
+    ExitWithCode
+  }
+}
+
+# Licensertf
+# Skip license.rtf generation if not requested.
+if ($licensertf) {
+  $use_x64_node_exe = $false
+  if ($target_arch -eq 'arm64' -and $env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
+    $use_x64_node_exe = $true
+  }
+  if ($use_x64_node_exe -eq $true) {
+    Write-Output "Cross-compilation to ARM64 detected. We'll use the x64 Node executable for license2rtf."
+    # Should be an env ?
+    if (!$x64_node_exe) {
+      $x64_node_exe = 'temp-vcbuild\node-x64-cross-compiling.exe'
+    }
+    if (!(Test-Path $x64_node_exe)) {
+      Write-Output 'Downloading x64 node.exe...'
+      if (!(Test-Path 'temp-vcbuild')) {
+        New-Item -ItemType Directory -Name temp-vcbuild
+      }
+      powershell -c "Invoke-WebRequest -Uri 'https://nodejs.org/dist/latest/win-x64/node.exe' -OutFile 'temp-vcbuild\node-x64-cross-compiling.exe'"
+    }
+    if (!(Test-Path $x64_node_exe)) {
+      Write-Output 'Could not find the Node executable at the give x64_node_exe path. Aborting.'
+      ExitWithCode 1
+    }
+    Get-Content LICENSE | & $x64_node_exe .\tools\license2rtf.js > $config\license.rtf
+  }
+  Else {
+    Get-Content LICENSE | & $node_exe .\tools\license2rtf.js > $config\license.rtf
+  }
+
+  if ($LASTEXITCODE -eq 1) {
+    Write-Output 'Failed to generate license.rtf'
+    ExitWithCode
+  }
+}
+
+# Stage package
+if ($stage_package) {
+  Write-Output 'Creating package...'
+  Set-Location -Path "$PSScriptRoot\Release"
 }
